@@ -10,6 +10,12 @@ Kullanım: python main.py [ajan] "görev" [--project YOL]
 """
 from __future__ import annotations
 
+import sys, io
+# Windows konsolunda UTF-8 çıktı
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 import argparse
 import json
 import sys
