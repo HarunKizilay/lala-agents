@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 TOKEN      = os.getenv("TELEGRAM_BOT_TOKEN")
 ALLOWED_ID = int(os.getenv("TELEGRAM_CHAT_ID", "0"))
-DEFAULT_PROJECT = "C:/Users/aemre/Desktop/ZEKY"
+DEFAULT_PROJECT = os.getenv("LALA_PROJECT_PATH", "C:/Users/aemre/Desktop/ZEKY")
 
 SSL_CTX = ssl._create_unverified_context()
 EXECUTOR = ThreadPoolExecutor(max_workers=4)

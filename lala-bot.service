@@ -1,0 +1,15 @@
+[Unit]
+Description=LALA Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/LALA
+EnvironmentFile=/root/LALA/.env
+ExecStart=/root/LALA/lala-venv/bin/python telegram_bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
