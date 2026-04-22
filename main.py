@@ -239,10 +239,22 @@ def main():
             print("\n[APPLY] Uygulanacak kod bloğu bulunamadı.")
             print("  İpucu: Sadece 'dev' ajanıyla çalışır.")
         else:
-            print(f"\n[APPLY] {len(blocks)} dosya yazılıyor...")
-            changed = apply_changes(args.project, blocks)
-            if changed:
-                git_commit_push(args.project, task, changed, push=args.push)
+            print(f"\n{'='*60}")
+            print(f"[APPLY] Ajan şu dosyaları değiştirmek istiyor:")
+            for filepath, code in blocks:
+                lines = len(code.splitlines())
+                print(f"  • {filepath}  ({lines} satır)")
+            if args.push:
+                print(f"  → Onaylanırsa GitHub'a push edilecek.")
+            print(f"{'='*60}")
+            onay = input("Uygulansın mı? [e/h]: ").strip().lower()
+            if onay == "e":
+                print()
+                changed = apply_changes(args.project, blocks)
+                if changed:
+                    git_commit_push(args.project, task, changed, push=args.push)
+            else:
+                print("  İptal edildi, dosyalar değiştirilmedi.")
 
     # --save: sonucu logla
     if args.save:
