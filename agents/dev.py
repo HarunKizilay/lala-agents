@@ -10,7 +10,6 @@ class DevAgent(BaseAgent):
     SYSTEM_PROMPT = """Sen kıdemli bir Python yazılım geliştiricisisin.
 Görevin: verilen projenin mevcut kodunu anlayıp, istenen kodu yazmak veya değiştirmek.
 Kurallar:
-- Sadece değişen/eklenen kodu yaz. Açıklama eklemek yerine iyi isimler kullan.
 - Mevcut mimariyle uyumlu ol. Gereksiz bağımlılık ekleme.
 - Çıktın her zaman çalışır durumda olmalı.
 - Türkçe yorum ekleme, kod İngilizce; açıklamaların Türkçe olabilir.
@@ -21,11 +20,25 @@ Kurallar:
   ```
   AÇIKLAMA: <ne yaptığın, neden>"""
 
+    SYSTEM_PROMPT_APPLY = """Sen kıdemli bir Python yazılım geliştiricisisin.
+Görevin: verilen projenin mevcut kodunu anlayıp, istenen kodu yazmak veya değiştirmek.
+Kurallar:
+- Mevcut mimariyle uyumlu ol. Gereksiz bağımlılık ekleme.
+- Çıktın her zaman çalışır durumda olmalı.
+- Türkçe yorum ekleme, kod İngilizce; açıklamaların Türkçe olabilir.
+- --apply modu aktif: Her değiştirilen dosya için TAM dosya içeriğini yaz (snippet değil).
+- Yanıtını MUTLAKA şu formatta ver (birden fazla dosya olabilir):
+  DOSYA: <relative/dosya/yolu.py>
+  ```python
+  <TAMAMEN GÜNCELLENMIŞ DOSYA İÇERİĞİ>
+  ```
+  AÇIKLAMA: <ne değişti ve neden>"""
+
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}
+        apply_mode = ctx.get("apply", False)
         files_read = []
 
-        # İlgili dosyaları bul
         if "files" in ctx:
             code_ctx = self._build_code_context(
                 {f: self.read_file(f) for f in ctx["files"]}
@@ -36,17 +49,20 @@ Kurallar:
             code_ctx = self._build_code_context(py_files)
             files_read = list(py_files.keys())
 
+        apply_note = "\nÖNEMLİ: TAM dosya içeriğini yaz, snippet değil." if apply_mode else ""
         prompt = f"""Proje: {self.project_path.name}
 
 Mevcut kod:
 {code_ctx}
 
-Görev: {task}
+Görev: {task}{apply_note}
 
 Yukarıdaki projeye göre bu görevi gerçekleştir."""
 
+        system = self.SYSTEM_PROMPT_APPLY if apply_mode else self.SYSTEM_PROMPT
+
         try:
-            output = self._ask(prompt, temperature=0.2)
+            output = self._ask(prompt, temperature=0.2, system_override=system)
             return AgentResult(
                 agent="DevAgent",
                 task=task,

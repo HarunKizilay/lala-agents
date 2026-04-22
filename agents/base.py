@@ -88,8 +88,9 @@ class BaseAgent(ABC):
 
     # ── LLM çağrısı ────────────────────────────────────────────────────────────
 
-    def _ask(self, prompt: str, temperature: float = 0.3) -> str:
-        return ask(prompt, system=self.SYSTEM_PROMPT, temperature=temperature)
+    def _ask(self, prompt: str, temperature: float = 0.3, system_override: str = "") -> str:
+        system = system_override or self.SYSTEM_PROMPT
+        return ask(prompt, system=system, temperature=temperature)
 
     def _build_code_context(self, files: Dict[str, str]) -> str:
         """Dosya içeriklerini LLM'e gönderilecek metin bloğuna çevirir (boyut sınırlı)."""

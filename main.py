@@ -18,6 +18,8 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 
 import argparse
 import json
+import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -68,6 +70,61 @@ def save_result(result, output_dir: Path):
     return fname
 
 
+def parse_apply_blocks(output: str) -> list:
+    """DOSYA: path + ```python ... ``` bloklarını çıkarır."""
+    blocks = []
+    pattern = r'DOSYA:\s*([^\n]+)\n```(?:python)?\n(.*?)```'
+    for m in re.finditer(pattern, output, re.DOTALL):
+        filepath = m.group(1).strip().replace("\\", "/")
+        code = m.group(2).rstrip("\n")
+        blocks.append((filepath, code))
+    return blocks
+
+
+def apply_changes(project_path: str, blocks: list) -> list:
+    """Kod bloklarını dosyalara yazar, değiştirilen dosya listesini döner."""
+    changed = []
+    base = Path(project_path)
+    for filepath, code in blocks:
+        full_path = base / filepath
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(code, encoding="utf-8")
+        print(f"  ✓ Yazıldı: {filepath}")
+        changed.append(filepath)
+    return changed
+
+
+def git_commit_push(project_path: str, task: str, changed_files: list, push: bool) -> bool:
+    """Değiştirilen dosyaları git'e ekler, commit atar, opsiyonel push yapar."""
+    base = Path(project_path)
+    try:
+        for f in changed_files:
+            subprocess.run(["git", "add", f], cwd=base, check=True)
+
+        msg = (
+            f"feat: LALA Dev ajanı — {task[:60]}\n\n"
+            f"Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+        )
+        r = subprocess.run(["git", "commit", "-m", msg], cwd=base,
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"  Commit hatası: {r.stderr.strip()}")
+            return False
+        print(f"  ✓ Commit: {r.stdout.strip()[:80]}")
+
+        if push:
+            r = subprocess.run(["git", "push", "origin", "main"], cwd=base,
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                print(f"  Push hatası: {r.stderr.strip()}")
+                return False
+            print("  ✓ GitHub'a push edildi.")
+        return True
+    except Exception as e:
+        print(f"  Git hatası: {e}")
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="LALA Ajan Sistemi",
@@ -109,6 +166,16 @@ def main():
         action="store_true",
         help="Çıktıyı JSON formatında ver",
     )
+    parser.add_argument(
+        "--apply", "-a",
+        action="store_true",
+        help="Dev ajanı çıktısını dosyalara uygula (tam dosya modu)",
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="--apply ile birlikte kullanılır: değişiklikleri GitHub'a push et",
+    )
 
     args = parser.parse_args()
 
@@ -137,6 +204,8 @@ def main():
         context["files"] = args.files
     if args.error:
         context["error"] = args.error
+    if args.apply:
+        context["apply"] = True
     if agent_key == "all":
         context["agents"] = ["dev", "qa", "doc", "debug", "security"]
 
@@ -163,7 +232,19 @@ def main():
     else:
         print(result.output if result.ok() else f"HATA: {result.error}")
 
-    # Kaydet
+    # --apply: çıktıdaki kodu dosyalara yaz
+    if args.apply and result.ok():
+        blocks = parse_apply_blocks(result.output)
+        if not blocks:
+            print("\n[APPLY] Uygulanacak kod bloğu bulunamadı.")
+            print("  İpucu: Sadece 'dev' ajanıyla çalışır.")
+        else:
+            print(f"\n[APPLY] {len(blocks)} dosya yazılıyor...")
+            changed = apply_changes(args.project, blocks)
+            if changed:
+                git_commit_push(args.project, task, changed, push=args.push)
+
+    # --save: sonucu logla
     if args.save:
         log_dir = Path(__file__).parent / "logs"
         saved = save_result(result, log_dir)
