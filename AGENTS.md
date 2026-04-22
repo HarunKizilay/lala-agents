@@ -94,10 +94,13 @@ python main.py qa "kod kalitesini değerlendir" --json
 
 ## LLM
 
-| Sıra | Model | Durum |
-|------|-------|-------|
-| 1. | Gemini (google-genai) | Birincil |
-| 2. | Claude Sonnet 4.6 | Yedek |
+| Sıra | Sağlayıcı | Model | Not |
+|------|-----------|-------|-----|
+| 1. | LM Studio | localhost:1234 | Yerel, ücretsiz |
+| 2. | OpenRouter | mistral-7b-instruct:free | Ücretsiz bulut |
+| 3. | GitHub Models | gpt-4o-mini | GitHub PAT ile |
+| 4. | Gemini | gemini-2.0-flash | Google API |
+| 5. | Anthropic | claude-sonnet-4-6 | Son yedek |
 
 API anahtarları `C:/Users/aemre/Desktop/ZEKY/.env` dosyasından okunur.
 
