@@ -6,8 +6,15 @@ from __future__ import annotations
 import os
 import json
 import urllib.request
+import concurrent.futures
 from pathlib import Path
 from dotenv import load_dotenv
+
+_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+def _with_timeout(fn, seconds: int):
+    fut = _EXECUTOR.submit(fn)
+    return fut.result(timeout=seconds)
 
 # .env yükleme: önce LALA kökü, sonra aktif proje
 for env_path in [
@@ -66,7 +73,7 @@ def _ask_lm_studio(prompt: str, system: str, temperature: float) -> str:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=5) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         data = json.loads(resp.read())
     return data["choices"][0]["message"]["content"].strip()
 
@@ -100,7 +107,7 @@ def _ask_openrouter(prompt: str, system: str, temperature: float) -> str:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=90) as resp:
         data = json.loads(resp.read())
     return data["choices"][0]["message"]["content"].strip()
 
@@ -133,7 +140,7 @@ def _ask_github_models(prompt: str, system: str, temperature: float) -> str:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=90) as resp:
         data = json.loads(resp.read())
     return data["choices"][0]["message"]["content"].strip()
 
@@ -151,12 +158,13 @@ def _ask_gemini(prompt: str, system: str, temperature: float) -> str:
     model = os.getenv("GEMINI_MODEL_FLASH", "gemini-2.0-flash")
     client = genai.Client(api_key=api_key)
     full_prompt = f"{system}\n\n{prompt}" if system else prompt
-    response = client.models.generate_content(
-        model=model,
-        contents=full_prompt,
-        config=types.GenerateContentConfig(temperature=temperature),
-    )
-    return response.text.strip()
+    def _call():
+        return client.models.generate_content(
+            model=model,
+            contents=full_prompt,
+            config=types.GenerateContentConfig(temperature=temperature),
+        ).text.strip()
+    return _with_timeout(_call, 90)
 
 
 # ── 5. Anthropic ──────────────────────────────────────────────────────────────
@@ -169,10 +177,11 @@ def _ask_claude(prompt: str, system: str) -> str:
         raise ValueError("ANTHROPIC_API_KEY bulunamadı")
 
     client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        system=system or "Sen yardımcı bir AI asistanısın.",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text.strip()
+    def _call():
+        return client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=system or "Sen yardımcı bir AI asistanısın.",
+            messages=[{"role": "user", "content": prompt}],
+        ).content[0].text.strip()
+    return _with_timeout(_call, 90)
