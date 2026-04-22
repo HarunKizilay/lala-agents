@@ -13,8 +13,9 @@ from typing import Any, Dict, List, Optional
 from llm.client import ask
 
 
-MAX_FILE_CHARS = 12_000   # LLM'e gönderilecek max karakter / dosya
-MAX_FILES      = 20       # Tek seferde okunacak max dosya
+MAX_FILE_CHARS   = 4_000  # LLM'e gönderilecek max karakter / dosya
+MAX_FILES        = 10     # Tek seferde okunacak max dosya
+MAX_TOTAL_CHARS  = 30_000 # Tüm prompt için üst sınır (API payload limiti)
 
 
 class AgentResult:
@@ -91,10 +92,16 @@ class BaseAgent(ABC):
         return ask(prompt, system=self.SYSTEM_PROMPT, temperature=temperature)
 
     def _build_code_context(self, files: Dict[str, str]) -> str:
-        """Dosya içeriklerini LLM'e gönderilecek metin bloğuna çevirir."""
+        """Dosya içeriklerini LLM'e gönderilecek metin bloğuna çevirir (boyut sınırlı)."""
         parts = []
+        total = 0
         for path, content in files.items():
-            parts.append(f"### {path}\n```\n{content}\n```")
+            block = f"### {path}\n```\n{content}\n```"
+            if total + len(block) > MAX_TOTAL_CHARS:
+                parts.append(f"### ... (boyut sınırı nedeniyle {len(files) - len(parts)} dosya atlandı)")
+                break
+            parts.append(block)
+            total += len(block)
         return "\n\n".join(parts)
 
     # ── soyut metot ────────────────────────────────────────────────────────────

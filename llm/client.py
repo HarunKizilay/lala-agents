@@ -21,7 +21,7 @@ for env_path in [
 LM_STUDIO_BASE  = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
 LM_STUDIO_MODEL = os.getenv("LM_STUDIO_MODEL",    "local-model")
 
-OPENROUTER_MODEL    = os.getenv("OPENROUTER_DEFAULT_MODEL", "google/gemma-2-9b-it:free")
+OPENROUTER_MODEL    = os.getenv("OPENROUTER_DEFAULT_MODEL", "google/gemma-4-31b-it:free")
 GITHUB_MODELS_MODEL = os.getenv("GITHUB_DEFAULT_MODEL",     "gpt-4o-mini")
 
 
@@ -148,7 +148,7 @@ def _ask_gemini(prompt: str, system: str, temperature: float) -> str:
     if not api_key:
         raise ValueError("GEMINI_API_KEY bulunamadı")
 
-    model = os.getenv("GEMINI_MODEL_PRO", "gemini-2.0-flash")
+    model = os.getenv("GEMINI_MODEL_FLASH", "gemini-2.0-flash")
     client = genai.Client(api_key=api_key)
     full_prompt = f"{system}\n\n{prompt}" if system else prompt
     response = client.models.generate_content(
