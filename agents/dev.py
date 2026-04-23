@@ -51,7 +51,6 @@ Dosya yolu proje köküne göre relative olmalı (src/... gibi)."""
 
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}
-        apply_mode = ctx.get("apply", False)
         files_read = []
 
         if "files" in ctx:
@@ -64,17 +63,16 @@ Dosya yolu proje köküne göre relative olmalı (src/... gibi)."""
             code_ctx = self._build_code_context(py_files)
             files_read = list(py_files.keys())
 
-        apply_note = "\nÖNEMLİ: TAM dosya içeriğini yaz — snippet değil, deploy edilebilir hali." if apply_mode else ""
         prompt = f"""Proje: {self.project_path.name}
 
 Mevcut kod:
 {code_ctx}
 
-İstek: {task}{apply_note}
+İstek: {task}
 
 Yukarıdaki ZEKY projesine göre bu isteği gerçekleştir."""
 
-        system = self.SYSTEM_PROMPT_APPLY if apply_mode else self.SYSTEM_PROMPT
+        system = self.SYSTEM_PROMPT_APPLY
 
         try:
             output = self._ask(prompt, temperature=0.2, system_override=system)

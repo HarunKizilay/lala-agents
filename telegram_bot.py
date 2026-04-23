@@ -156,8 +156,6 @@ def cmd_durum(chat_id: int, _args: str):
 def cmd_ajan(chat_id: int, agent_key: str, args: str):
     import concurrent.futures as cf
     parts = args.split()
-    apply = "--apply" in parts
-    push  = "--push"  in parts
     task  = " ".join(p for p in parts if p not in ("--apply", "--push")) or "Projeyi analiz et"
 
     send(chat_id, f"⏳ *{agent_key.upper()}* çalışıyor...\n`{task[:80]}`")
@@ -165,7 +163,7 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
     try:
         AgentClass = AGENT_MAP[agent_key]
         agent = AgentClass(DEFAULT_PROJECT)
-        context = {"apply": True} if apply else {}
+        context = {"apply": True}  # her zaman tam dosya formatı
         with cf.ThreadPoolExecutor(max_workers=1) as ex:
             fut = ex.submit(agent.run, task, context)
             try:
@@ -187,32 +185,30 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
     for i in range(0, len(output), 4000):
         send(chat_id, output[i:i+4000], parse_mode=None)
 
-    # --apply: güvenlik kapısı + onay butonu
-    if apply:
-        blocks = parse_apply_blocks(result.output)
-        if not blocks:
-            send(chat_id, "ℹ️ Uygulanacak kod bloğu bulunamadı.")
-            return
+    # Kod bloğu varsa otomatik butonlar göster — kullanıcı yazmak zorunda değil
+    blocks = parse_apply_blocks(result.output)
+    if not blocks:
+        return
 
-        gate_ok, gate_report = _security_gate(blocks)
+    gate_ok, gate_report = _security_gate(blocks)
+    dosyalar = "\n".join(f"  • `{fp}` ({len(c.splitlines())} satır)" for fp, c in blocks)
+    pending[chat_id] = (blocks, DEFAULT_PROJECT, task, gate_ok)
 
-        dosyalar = "\n".join(f"  • `{fp}` ({len(c.splitlines())} satır)" for fp, c in blocks)
-        push_notu = "\n→ Onaylanırsa *GitHub'a push* edilecek." if push else ""
-
-        # Kritik güvenlik sorunu varsa push'u engelle
-        if not gate_ok and push:
-            pending[chat_id] = (blocks, DEFAULT_PROJECT, task, False)  # push=False
-            push_notu = "\n⛔ Push *engellendi* — güvenlik sorununu düzeltin, sonra tekrar deneyin."
-        else:
-            pending[chat_id] = (blocks, DEFAULT_PROJECT, task, push)
-
+    if gate_ok:
         keyboard = {"inline_keyboard": [[
-            {"text": "✅ Uygula", "callback_data": "apply_yes"},
-            {"text": "❌ İptal",  "callback_data": "apply_no"},
+            {"text": "✅ Uygula",        "callback_data": "apply_yes"},
+            {"text": "✅ Uygula + Push", "callback_data": "apply_push"},
+            {"text": "❌ İptal",         "callback_data": "apply_no"},
         ]]}
-        send(chat_id,
-             f"📋 *Değiştirilecek dosyalar:*\n{dosyalar}{push_notu}\n\n{gate_report}",
-             reply_markup=keyboard)
+    else:
+        keyboard = {"inline_keyboard": [[
+            {"text": "✅ Uygula (push engellendi)", "callback_data": "apply_yes"},
+            {"text": "❌ İptal",                    "callback_data": "apply_no"},
+        ]]}
+
+    send(chat_id,
+         f"📋 *Değiştirilecek dosyalar:*\n{dosyalar}\n\n{gate_report}",
+         reply_markup=keyboard)
 
 
 def cmd_iptal(chat_id: int, _args: str):
@@ -234,11 +230,13 @@ def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
         edit_message(chat_id, message_id, "⚠️ Bekleyen işlem bulunamadı.")
         return
 
-    blocks, project, task, push = info
+    blocks, project, task, gate_ok = info
 
     if data == "apply_no":
         edit_message(chat_id, message_id, "❌ İptal edildi.")
         return
+
+    push = (data == "apply_push") and gate_ok
 
     edit_message(chat_id, message_id, "⏳ Dosyalar yazılıyor...")
     try:
@@ -247,6 +245,8 @@ def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
         if push and changed:
             ok = git_commit_push(project, task, changed, push=True)
             push_sonuc = "\n✅ GitHub'a push edildi." if ok else "\n⚠️ Push başarısız."
+        elif data == "apply_push" and not gate_ok:
+            push_sonuc = "\n⛔ Güvenlik sorunu nedeniyle push engellendi."
         else:
             push_sonuc = ""
         edit_message(chat_id, message_id, f"✅ *Uygulandı:*\n{yazilan}{push_sonuc}")
