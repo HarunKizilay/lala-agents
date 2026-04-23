@@ -45,8 +45,11 @@ AGENT_MAP = {
     "doc": DocAgent, "debug": DebugAgent, "security": SecurityAgent,
 }
 
-# Bekleyen onay: {chat_id: (blocks, project, task, push)}
+# Bekleyen onay: {chat_id: (blocks, project, task, gate_ok)}
 pending: dict[int, tuple] = {}
+
+# Revizyon bekleniyor: {chat_id: (original_task, agent_key)}
+awaiting_revision: dict[int, tuple] = {}
 
 
 # ── Güvenlik Kapısı ───────────────────────────────────────────────────────────
@@ -213,12 +216,16 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
         keyboard = {"inline_keyboard": [[
             {"text": "✅ Uygula",        "callback_data": "apply_yes"},
             {"text": "✅ Uygula + Push", "callback_data": "apply_push"},
+        ], [
+            {"text": "✏️ Revize Et",    "callback_data": "apply_revise"},
             {"text": "❌ İptal",         "callback_data": "apply_no"},
         ]]}
     else:
         keyboard = {"inline_keyboard": [[
             {"text": "✅ Uygula (push engellendi)", "callback_data": "apply_yes"},
-            {"text": "❌ İptal",                    "callback_data": "apply_no"},
+            {"text": "✏️ Revize Et",               "callback_data": "apply_revise"},
+        ], [
+            {"text": "❌ İptal", "callback_data": "apply_no"},
         ]]}
 
     # Kullanıcı özetini çıkar (varsa)
@@ -253,6 +260,12 @@ def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
 
     if data == "apply_no":
         edit_message(chat_id, message_id, "❌ İptal edildi.")
+        return
+
+    if data == "apply_revise":
+        awaiting_revision[chat_id] = ("dev", task)
+        edit_message(chat_id, message_id,
+                     "✏️ *Ne değiştirilsin?*\n\nDüzeltme isteğinizi yazın — ajan yeniden üretecek.")
         return
 
     push = (data == "apply_push") and gate_ok
@@ -307,9 +320,17 @@ def process_update(update: dict):
         log.warning(f"Yetkisiz chat_id: {chat_id}")
         return
 
-    # Serbest metin → Master ajan otomatik yönlendirir
+    # Serbest metin
     if not text.startswith("/"):
-        EXECUTOR.submit(cmd_ajan, chat_id, "master", text)
+        if chat_id in awaiting_revision:
+            # Revizyon modu: orijinal görevi + yeni talebi birleştir
+            agent_key, original_task = awaiting_revision.pop(chat_id)
+            revised_task = f"{original_task}\n\nKULLANICI REVİZYONU: {text}"
+            send(chat_id, f"✏️ *Revize ediliyor...*\n`{text[:80]}`")
+            EXECUTOR.submit(cmd_ajan, chat_id, agent_key, revised_task)
+        else:
+            # Normal mod: Master ajan yönlendirir
+            EXECUTOR.submit(cmd_ajan, chat_id, "master", text)
         return
 
     # Slash komutları
