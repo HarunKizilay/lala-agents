@@ -64,6 +64,21 @@ _GATE_RULES = [
     (_re.compile(r"verify\s*=\s*False", _re.I),               "ORTA",   "SSL doğrulama kapalı"),
 ]
 
+def _extract_user_summary(output: str) -> str:
+    """Ajan çıktısından KULLANICI ÖZETİ bölümünü çıkarır."""
+    marker = "📋 KULLANICI ÖZETİ"
+    if marker not in output:
+        return ""
+    start = output.find(marker)
+    # Özet bölümünün sonu: ilk DOSYA: veya ``` bloğuna kadar
+    end = output.find("\nDOSYA:", start)
+    if end == -1:
+        end = output.find("\n```", start)
+    if end == -1:
+        end = start + 600  # max 600 karakter
+    return output[start:end].strip()
+
+
 def _security_gate(blocks: list) -> tuple:
     """Üretilen kod bloklarını hızlı güvenlik taramasından geçirir. LLM gerekmez."""
     criticals, warnings = [], []
@@ -206,8 +221,12 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
             {"text": "❌ İptal",                    "callback_data": "apply_no"},
         ]]}
 
+    # Kullanıcı özetini çıkar (varsa)
+    ozet = _extract_user_summary(result.output)
+    ozet_bolum = f"{ozet}\n\n" if ozet else ""
+
     send(chat_id,
-         f"📋 *Değiştirilecek dosyalar:*\n{dosyalar}\n\n{gate_report}",
+         f"{ozet_bolum}📂 *Değiştirilecek dosyalar:*\n{dosyalar}\n\n{gate_report}",
          reply_markup=keyboard)
 
 

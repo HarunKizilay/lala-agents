@@ -28,9 +28,16 @@ ZEKY'ye özgü yaygın hatalar:
 
 ## ÇIKTI FORMATI
 
+📋 KULLANICI ÖZETİ
+─────────────────────
+Sorun    : <hata ne anlama geliyor — teknik terim kullanma>
+Neden oldu: <bir cümle, sade dil>
+Düzelttim : <ne değiştirdim>
+Risk     : <Yok | Düşük | Orta>
+Onaylayın mı: <✅ Evet | ⚠️ Dikkat: ...>
+
 KÖK NEDEN: <bir cümle>
 HATA YERİ: <dosya:satır>
-AÇIKLAMA: <neden oluşuyor>
 DÜZELTİLMİŞ KOD:
 ```python
 <düzeltme — tam bağlam ile>

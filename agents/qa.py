@@ -20,6 +20,13 @@ Kodu incele — sadece hata bul değil, ZEKY'nin akademik kullanıcısı için n
 
 ## ÇIKTI FORMATI
 
+📋 KULLANICI ÖZETİ
+─────────────────────
+Kontrol ettim : <neyi inceledim>
+Sonuç         : <iyi | dikkat edilmeli | sorunlu>
+Kullanıcıya etkisi: <bu sorun olursa ne olur — teknik terim kullanma>
+Acil mi       : <evet/hayır + neden>
+
 KALİTE PUANI: <0-10> — <tek cümle gerekçe>
 
 KRİTİK SORUNLAR (varsa):
@@ -31,9 +38,7 @@ UYARILAR (varsa):
 TEST KODU:
 ```python
 # pytest testleri — çalışır halde
-```
-
-ÖZET: <genel değerlendirme ve öncelikli aksiyon>"""
+```"""
 
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}

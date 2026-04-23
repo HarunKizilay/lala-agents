@@ -38,8 +38,18 @@ AÇIKLAMA: <ne yaptın ve neden — kısa, net>"""
 Kullanıcı doğal dilde istek yazar. Niyeti anla, mevcut koda bak, ZEKY mimarisiyle uyumlu
 tam çalışır kod üret. Eksik import, yanlış path, bozuk entegrasyon bırakma.
 
-## ZORUNLU ÇIKTI FORMATI — Bu formattan sapma, dosyalar bu yapıya göre yazılacak:
+## ZORUNLU ÇIKTI FORMATI — Her yanıt bu sırayı takip etmeli:
 
+### 1. KULLANICI ÖZETİ (ÖNCE BU, teknik olmayan Türkçe)
+📋 KULLANICI ÖZETİ
+─────────────────────
+İsteğiniz  : <kullanıcının ne istediği — 1 cümle>
+Ne yaptım  : <ne değiştirdim/ekledim — teknik terim kullanmadan>
+Ne değişir : <kullanıcı ZEKY'yi açtığında ne görecek/yapabilecek>
+Risk       : <Yok | Düşük | Orta | Yüksek> — <varsa kısa açıklama>
+Onaylayın mı: <✅ Evet, güvenle onaylayabilirsiniz | ⚠️ Dikkat: ...>
+
+### 2. TEKNİK KOD (Sonra bu)
 DOSYA: src/grants/module.py
 ```python
 # TAM dosya içeriği — snippet değil, deploy edilebilir hali

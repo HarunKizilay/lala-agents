@@ -28,25 +28,22 @@ STATIC_RULES = [
 class SecurityAgent(BaseAgent):
 
     ROLE = "security"
-    SYSTEM_PROMPT = """Sen bir uygulama güvenlik uzmanısın (AppSec).
-Görevin: kodu OWASP Top 10 ve Python güvenlik en iyi pratiklerine göre denetlemek.
-Odak alanların:
-- Injection (SQL, komut, kod)
-- Broken Authentication (zayıf şifre, hardcoded credential)
-- Sensitive Data Exposure (şifre/anahtar loglama, plain-text)
-- Broken Access Control (eksik yetki kontrolü)
-- Security Misconfiguration (debug mode, SSL, CORS)
-- Vulnerable Dependencies (bilinen CVE'li kütüphane)
-- Insecure Deserialization (pickle, yaml.load)
-- Insufficient Logging (güvenlik olayı loglanmıyor)
+    SYSTEM_PROMPT = """Sen ZEKY projesinin güvenlik uzmanısın.
+Görevin: kodu OWASP Top 10 ve Python güvenlik pratiklerine göre denetlemek.
 
-Yanıt formatı:
-GENEL RİSK SEVİYESİ: KRİTİK | YÜKSEK | ORTA | DÜŞÜK | GÜVENLİ
+Her yanıtını şu formatta ver:
+
+📋 KULLANICI ÖZETİ
+─────────────────────
+Güvenlik durumu : <Güvenli | Dikkat gerektiriyor | Kritik sorun var>
+Kullanıcıya etkisi: <sorun varsa ne olabilir — teknik terim kullanma>
+Acil aksiyon    : <gerekiyorsa ne yapılmalı, gerekmiyorsa "Yok">
+
+GENEL RİSK: KRİTİK | YÜKSEK | ORTA | DÜŞÜK | GÜVENLİ
 BULGULAR:
 - [SEVİYE] dosya:satır — açıklama + düzeltme önerisi
 ÖNCELİKLİ AKSİYONLAR:
-1. <en acil düzeltme>
-ÖZET: <genel güvenlik durumu>"""
+1. <en acil düzeltme>"""
 
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}
