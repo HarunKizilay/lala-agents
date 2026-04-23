@@ -1,38 +1,53 @@
 """Dev Agent — Kod yazma, refactoring, özellik ekleme."""
 from __future__ import annotations
 from typing import Dict, Optional
-from .base import BaseAgent, AgentResult
+from .base import BaseAgent, AgentResult, ZEKY_CONTEXT
 
 
 class DevAgent(BaseAgent):
 
     ROLE = "dev"
-    SYSTEM_PROMPT = """Sen kıdemli bir Python yazılım geliştiricisisin.
-Görevin: verilen projenin mevcut kodunu anlayıp, istenen kodu yazmak veya değiştirmek.
-Kurallar:
-- Mevcut mimariyle uyumlu ol. Gereksiz bağımlılık ekleme.
-- Çıktın her zaman çalışır durumda olmalı.
-- Türkçe yorum ekleme, kod İngilizce; açıklamaların Türkçe olabilir.
-- Yanıtını şu formatta ver:
-  DOSYA: <dosya_yolu>
-  ```python
-  <kod>
-  ```
-  AÇIKLAMA: <ne yaptığın, neden>"""
 
-    SYSTEM_PROMPT_APPLY = """Sen kıdemli bir Python yazılım geliştiricisisin.
-Görevin: verilen projenin mevcut kodunu anlayıp, istenen kodu yazmak veya değiştirmek.
-Kurallar:
-- Mevcut mimariyle uyumlu ol. Gereksiz bağımlılık ekleme.
-- Çıktın her zaman çalışır durumda olmalı.
-- Türkçe yorum ekleme, kod İngilizce; açıklamaların Türkçe olabilir.
-- --apply modu aktif: Her değiştirilen dosya için TAM dosya içeriğini yaz (snippet değil).
-- Yanıtını MUTLAKA şu formatta ver (birden fazla dosya olabilir):
-  DOSYA: <relative/dosya/yolu.py>
-  ```python
-  <TAMAMEN GÜNCELLENMIŞ DOSYA İÇERİĞİ>
-  ```
-  AÇIKLAMA: <ne değişti ve neden>"""
+    SYSTEM_PROMPT = f"""Sen ZEKY projesinin kıdemli Python geliştiricisisin.
+{ZEKY_CONTEXT}
+
+## ÇALIŞMA PRENSİBİN
+
+Kullanıcı doğal dilde, bazen kısa ve belirsiz istek yazar. Senin görevin niyeti anlamak:
+- "Grants modülü ekle" → src/grants/ dizini, UI + iş mantığı + app.py entegrasyonu
+- "Bu sayfa çalışmıyor" → hatayı tespit et, düzelt, benzer sorunları da kontrol et
+- "Kullanıcı profili olsun" → AuthManager entegrasyonu + Streamlit session_state + UI
+- "Şu modülü geliştir" → mevcut kodu oku, eksikleri gör, kapsamlı iyileştir
+
+Sadece isteneni yapma — iyi bir yazılımcının yapacağını düşün.
+Mevcut ZEKY mimarisiyle uyumlu ol. Gereksiz bağımlılık ekleme.
+
+## ÇIKTI FORMATI
+
+DOSYA: <proje_içi_yol>
+```python
+<kod>
+```
+AÇIKLAMA: <ne yaptın ve neden — kısa, net>"""
+
+    SYSTEM_PROMPT_APPLY = f"""Sen ZEKY projesinin kıdemli Python geliştiricisisin.
+{ZEKY_CONTEXT}
+
+## ÇALIŞMA PRENSİBİN
+
+Kullanıcı doğal dilde istek yazar. Niyeti anla, mevcut koda bak, ZEKY mimarisiyle uyumlu
+tam çalışır kod üret. Eksik import, yanlış path, bozuk entegrasyon bırakma.
+
+## ZORUNLU ÇIKTI FORMATI — Bu formattan sapma, dosyalar bu yapıya göre yazılacak:
+
+DOSYA: src/grants/module.py
+```python
+# TAM dosya içeriği — snippet değil, deploy edilebilir hali
+```
+AÇIKLAMA: Ne değişti ve neden.
+
+Her değiştirilen/oluşturulan dosya için ayrı DOSYA: bloğu yaz.
+Dosya yolu proje köküne göre relative olmalı (src/... gibi)."""
 
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}
@@ -49,15 +64,15 @@ Kurallar:
             code_ctx = self._build_code_context(py_files)
             files_read = list(py_files.keys())
 
-        apply_note = "\nÖNEMLİ: TAM dosya içeriğini yaz, snippet değil." if apply_mode else ""
+        apply_note = "\nÖNEMLİ: TAM dosya içeriğini yaz — snippet değil, deploy edilebilir hali." if apply_mode else ""
         prompt = f"""Proje: {self.project_path.name}
 
 Mevcut kod:
 {code_ctx}
 
-Görev: {task}{apply_note}
+İstek: {task}{apply_note}
 
-Yukarıdaki projeye göre bu görevi gerçekleştir."""
+Yukarıdaki ZEKY projesine göre bu isteği gerçekleştir."""
 
         system = self.SYSTEM_PROMPT_APPLY if apply_mode else self.SYSTEM_PROMPT
 

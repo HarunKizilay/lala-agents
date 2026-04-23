@@ -49,6 +49,42 @@ AGENT_MAP = {
 pending: dict[int, tuple] = {}
 
 
+# ── Güvenlik Kapısı ───────────────────────────────────────────────────────────
+
+import re as _re
+
+_GATE_RULES = [
+    (_re.compile(r"eval\s*\(", _re.I),                        "KRİTİK", "eval() — kod injection"),
+    (_re.compile(r"exec\s*\(", _re.I),                        "KRİTİK", "exec() — kod injection"),
+    (_re.compile(r"os\.system\s*\(", _re.I),                  "KRİTİK", "os.system() — komut injection"),
+    (_re.compile(r"subprocess.*shell\s*=\s*True", _re.I),     "KRİTİK", "shell=True — komut injection"),
+    (_re.compile(r"password\s*=\s*['\"][^'\"]{4,}", _re.I),   "YÜKSEK", "Hardcoded şifre"),
+    (_re.compile(r"api_key\s*=\s*['\"][^'\"]{10,}", _re.I),   "YÜKSEK", "Hardcoded API anahtarı"),
+    (_re.compile(r"pickle\.loads?\s*\(", _re.I),              "YÜKSEK", "pickle — güvensiz deserializasyon"),
+    (_re.compile(r"verify\s*=\s*False", _re.I),               "ORTA",   "SSL doğrulama kapalı"),
+]
+
+def _security_gate(blocks: list) -> tuple:
+    """Üretilen kod bloklarını hızlı güvenlik taramasından geçirir. LLM gerekmez."""
+    criticals, warnings = [], []
+    for filepath, code in blocks:
+        for pattern, severity, desc in _GATE_RULES:
+            if pattern.search(code):
+                entry = f"• `{filepath}`: {desc}"
+                (criticals if severity == "KRİTİK" else warnings).append(entry)
+
+    if criticals:
+        lines = ["🔴 *Kritik Güvenlik Sorunu:*"] + criticals
+        if warnings:
+            lines += ["🟡 *Uyarılar:*"] + warnings
+        return False, "\n".join(lines)
+
+    if warnings:
+        return True, "🟡 *Güvenlik Uyarıları (engelleyici değil):*\n" + "\n".join(warnings)
+
+    return True, "🟢 Güvenlik taraması temiz."
+
+
 # ── Telegram API ──────────────────────────────────────────────────────────────
 
 def tg(method: str, **params) -> dict:
@@ -105,9 +141,16 @@ def cmd_durum(chat_id: int, _args: str):
     send(chat_id,
          "🟢 *LALA Bot aktif*\n\n"
          f"📁 Proje: `{DEFAULT_PROJECT}`\n\n"
-         "Komutlar:\n"
-         "/dev <görev> \\[--apply\\] \\[--push\\]\n"
-         "/qa <görev>\n/security\n/doc <görev>\n/debug <görev>\n/master <görev>")
+         "*Nasıl kullanılır:*\n"
+         "Ne istediğinizi doğal dilde yazın. Sistem otomatik yönlendirir.\n\n"
+         "*Örnekler:*\n"
+         "`Grants modülü ekle, hibe başvuru formu olsun`\n"
+         "`src/seminar/engine.py dosyasındaki SMTP hatası neden oluşuyor?`\n"
+         "`Analiz Motoru modülünü belgele`\n\n"
+         "*Dosyaya yazmak için:* mesajın sonuna `--apply` ekle\n"
+         "*GitHub push için:* `--apply --push` ekle\n\n"
+         "`/iptal` — Bekleyen işlemi iptal et\n"
+         "`/durum` — Bu menüyü göster")
 
 
 def cmd_ajan(chat_id: int, agent_key: str, args: str):
@@ -144,23 +187,31 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
     for i in range(0, len(output), 4000):
         send(chat_id, output[i:i+4000], parse_mode=None)
 
-    # --apply: onay butonu
+    # --apply: güvenlik kapısı + onay butonu
     if apply:
         blocks = parse_apply_blocks(result.output)
         if not blocks:
             send(chat_id, "ℹ️ Uygulanacak kod bloğu bulunamadı.")
             return
 
+        gate_ok, gate_report = _security_gate(blocks)
+
         dosyalar = "\n".join(f"  • `{fp}` ({len(c.splitlines())} satır)" for fp, c in blocks)
         push_notu = "\n→ Onaylanırsa *GitHub'a push* edilecek." if push else ""
-        pending[chat_id] = (blocks, DEFAULT_PROJECT, task, push)
+
+        # Kritik güvenlik sorunu varsa push'u engelle
+        if not gate_ok and push:
+            pending[chat_id] = (blocks, DEFAULT_PROJECT, task, False)  # push=False
+            push_notu = "\n⛔ Push *engellendi* — güvenlik sorununu düzeltin, sonra tekrar deneyin."
+        else:
+            pending[chat_id] = (blocks, DEFAULT_PROJECT, task, push)
 
         keyboard = {"inline_keyboard": [[
             {"text": "✅ Uygula", "callback_data": "apply_yes"},
             {"text": "❌ İptal",  "callback_data": "apply_no"},
         ]]}
         send(chat_id,
-             f"📋 *Değiştirilecek dosyalar:*\n{dosyalar}{push_notu}",
+             f"📋 *Değiştirilecek dosyalar:*\n{dosyalar}{push_notu}\n\n{gate_report}",
              reply_markup=keyboard)
 
 
@@ -237,20 +288,21 @@ def process_update(update: dict):
         log.warning(f"Yetkisiz chat_id: {chat_id}")
         return
 
+    # Serbest metin → Master ajan otomatik yönlendirir
     if not text.startswith("/"):
+        EXECUTOR.submit(cmd_ajan, chat_id, "master", text)
         return
 
-    # Komutu parse et
+    # Slash komutları
     parts   = text.lstrip("/").split(None, 1)
     cmd     = parts[0].split("@")[0].lower()
     args    = parts[1] if len(parts) > 1 else ""
 
     if cmd not in COMMANDS:
-        send(chat_id, f"Bilinmeyen komut: /{cmd}")
+        send(chat_id, f"Bilinmeyen komut: /{cmd}\n/durum yazarak kullanım rehberini görün.")
         return
 
     fn = COMMANDS[cmd]
-    # /dev, /qa vb. agent_key argümanı alır
     if cmd in ("dev", "qa", "doc", "debug", "master", "security"):
         EXECUTOR.submit(cmd_ajan, chat_id, cmd, args)
     else:

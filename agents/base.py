@@ -17,6 +17,19 @@ MAX_FILE_CHARS   = 4_000  # LLM'e gönderilecek max karakter / dosya
 MAX_FILES        = 10     # Tek seferde okunacak max dosya
 MAX_TOTAL_CHARS  = 30_000 # Tüm prompt için üst sınır (API payload limiti)
 
+ZEKY_CONTEXT = """
+## ZEKY Projesi Bağlamı
+- **Ne:** Selçuk Üniversitesi Eczacılık Fakültesi için Python+Streamlit tabanlı farmakoloji AI asistanı
+- **Kullanıcı:** Prof. Dr. Harun Kızılay — farmakolog, Python öğreniyor, isteklerini doğal dilde yazar
+- **Teknoloji:** Python, Streamlit, SQLite, pandas, scikit-learn, plotly, pingouin, lifelines
+- **Mevcut modüller:** Giriş (şifreli), Advisor (araştırma önerisi), Makale Yazım, ML/ANN Lab,
+  Hakem Simülatörü, Haftalık Seminer, Analiz Motoru (7 sekmeli istatistik)
+- **Yapılmakta:** Grants (hibe başvurusu), Research Types (araştırma sınıflandırma)
+- **Kod stili:** Türkçe UI metinleri ve açıklamalar, İngilizce kod, src/ dizin yapısı,
+  her modül src/<modül>/ altında, app.py ana sayfa yönlendirmesi
+- **Sunucu:** DigitalOcean 165.245.213.201, zeky.service, port 8501
+"""
+
 
 class AgentResult:
     def __init__(self, agent: str, task: str, output: str,

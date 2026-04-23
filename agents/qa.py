@@ -1,30 +1,39 @@
 """QA Agent — Test yazma, kod kalite kontrolü, review."""
 from __future__ import annotations
 from typing import Dict, Optional
-from .base import BaseAgent, AgentResult
+from .base import BaseAgent, AgentResult, ZEKY_CONTEXT
 
 
 class QAAgent(BaseAgent):
 
     ROLE = "qa"
-    SYSTEM_PROMPT = """Sen bir yazılım kalite güvence (QA) uzmanısın.
-Görevin: kodu incelemek, hataları bulmak, testler yazmak.
-Odak alanların:
-- Mantık hataları ve edge case'ler
-- Test coverage eksiklikleri
-- Hatalı veya eksik hata yönetimi
-- Performans sorunları
-- pytest ile yazılmış, çalışır test dosyaları
 
-Yanıt formatı:
-KALİTE PUANI: <0-10>
-BULGULAR:
-- [KRİTİK/UYARI/ÖNERİ] <bulgu>
+    SYSTEM_PROMPT = f"""Sen ZEKY projesinin kalite güvence (QA) uzmanısın.
+{ZEKY_CONTEXT}
+
+## GÖREVIN
+
+Kodu incele — sadece hata bul değil, ZEKY'nin akademik kullanıcısı için ne anlama geldiğini düşün:
+- Bir farmakolog bu modülü kullandığında ne sorunla karşılaşır?
+- Eksik hata mesajları, boş ekranlar, çöken sayfalar kabul edilemez
+- Streamlit session_state hataları, import sorunları, veri tipi uyumsuzlukları
+
+## ÇIKTI FORMATI
+
+KALİTE PUANI: <0-10> — <tek cümle gerekçe>
+
+KRİTİK SORUNLAR (varsa):
+- [KRİTİK] <sorun> → <düzeltme>
+
+UYARILAR (varsa):
+- [UYARI] <sorun> → <öneri>
+
 TEST KODU:
 ```python
-<pytest testleri>
+# pytest testleri — çalışır halde
 ```
-ÖZET: <genel değerlendirme>"""
+
+ÖZET: <genel değerlendirme ve öncelikli aksiyon>"""
 
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}
@@ -45,9 +54,9 @@ TEST KODU:
 Kod:
 {code_ctx}
 
-QA Görevi: {task}
+QA İsteği: {task}
 
-Kodu incele, bulguları raporla ve gerekirse pytest testleri yaz."""
+ZEKY'nin farmakoloji kullanıcısı perspektifinden kodu incele, bulguları raporla."""
 
         try:
             output = self._ask(prompt, temperature=0.2)

@@ -1,28 +1,39 @@
-"""Debug Agent — Hata analizi, kök neden tespiti, düzeltme önerisi."""
+"""Debug Agent — Hata analizi, kök neden tespiti, düzeltme."""
 from __future__ import annotations
 from typing import Dict, Optional
-from .base import BaseAgent, AgentResult
+from .base import BaseAgent, AgentResult, ZEKY_CONTEXT
 
 
 class DebugAgent(BaseAgent):
 
     ROLE = "debug"
-    SYSTEM_PROMPT = """Sen bir uzman yazılım debug uzmanısın.
-Görevin: hata mesajlarını ve kodu analiz edip kök nedeni bulmak ve düzeltmek.
-Yaklaşımın:
-1. Hata mesajını (traceback) satır satır oku
-2. İlgili kodu bul
-3. Kök nedeni açıkla (semptom değil, neden)
-4. Düzeltilmiş kodu yaz
-5. Aynı hatanın başka yerde olup olmadığını kontrol et
 
-Yanıt formatı:
+    SYSTEM_PROMPT = f"""Sen ZEKY projesinin debug uzmanısın.
+{ZEKY_CONTEXT}
+
+## GÖREVIN
+
+Hata mesajı veya "çalışmıyor" şikayeti aldığında:
+1. Traceback varsa satır satır oku — semptoma değil, KÖK NEDENE odaklan
+2. İlgili kodu bul
+3. Neden bu hata oluşuyor — tek cümle
+4. Düzeltilmiş kodu yaz — tam, çalışır hali
+5. Aynı hatanın başka yerde de olup olmadığını kontrol et
+
+ZEKY'ye özgü yaygın hatalar:
+- Streamlit session_state KeyError → başlangıçta initialize et
+- Import hatası → src/ dizin yapısını kontrol et
+- SQLite bağlantı sorunu → context manager kullan
+- Pandas dtype uyumsuzluğu → explicit cast ekle
+
+## ÇIKTI FORMATI
+
 KÖK NEDEN: <bir cümle>
 HATA YERİ: <dosya:satır>
-AÇIKLAMA: <neden bu hata oluşuyor>
+AÇIKLAMA: <neden oluşuyor>
 DÜZELTİLMİŞ KOD:
 ```python
-<düzeltme>
+<düzeltme — tam bağlam ile>
 ```
 DİĞER RİSKLER: <başka yerde aynı sorun var mı>"""
 
@@ -30,7 +41,7 @@ DİĞER RİSKLER: <başka yerde aynı sorun var mı>"""
         ctx = context or {}
         files_read = []
 
-        error_msg = ctx.get("error", "")
+        error_msg  = ctx.get("error", "")
         traceback  = ctx.get("traceback", "")
 
         if "files" in ctx:
@@ -52,9 +63,9 @@ DİĞER RİSKLER: <başka yerde aynı sorun var mı>"""
 Kod:
 {code_ctx}
 
-Debug görevi: {task}
+Debug isteği: {task}
 
-Hatayı analiz et, kök nedeni bul ve düzeltilmiş kodu yaz."""
+Hatayı analiz et, kök nedeni bul, düzeltilmiş kodu yaz."""
 
         try:
             output = self._ask(prompt, temperature=0.1)

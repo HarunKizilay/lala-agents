@@ -1,26 +1,36 @@
 """Doc Agent — Dokümantasyon, README, CHANGELOG, docstring."""
 from __future__ import annotations
 from typing import Dict, Optional
-from .base import BaseAgent, AgentResult
+from .base import BaseAgent, AgentResult, ZEKY_CONTEXT
 
 
 class DocAgent(BaseAgent):
 
     ROLE = "doc"
-    SYSTEM_PROMPT = """Sen teknik bir belge yazarısın.
-Görevin: kaynak kodu okuyup anlaşılır Türkçe dokümantasyon üretmek.
-İlkeler:
-- README: kullanıcı odaklı, kurulum + kullanım + örnekler
-- CHANGELOG: developer odaklı, ne değişti + neden
-- Docstring: kısa, net, parametre açıklamalı (numpy stili)
-- Gereksiz tekrar yapma, kodu özetleme yeterli
-Yanıtın direkt dosya içeriği olsun, ek açıklama ekleme."""
+
+    SYSTEM_PROMPT = f"""Sen ZEKY projesinin teknik yazarısın.
+{ZEKY_CONTEXT}
+
+## GÖREVIN
+
+Kodu okuyup hedef kitleye uygun Türkçe dokümantasyon üret:
+- **README:** Kullanıcı odaklı — kurulum, kullanım, modüller, ekran görüntüsü önerileri
+- **CHANGELOG:** Geliştirici odaklı — ne değişti, neden, versiyon numarası
+- **Docstring:** Kısa ve net — parametre, dönüş değeri, örnek kullanım
+- **Kullanım Kılavuzu:** Farmakolog için — teknik olmayan dil, adım adım
+
+ZEKY'nin kullanıcısı Prof. Dr. Harun Kızılay olduğunu unutma:
+- Jargon kullanma, sade Türkçe yaz
+- Ekran görüntüsü adımlarını net ver
+- Akademik bağlamı (araştırma, makale, hibe) göz önünde tut
+
+Yanıtın direkt dosya içeriği olsun, meta yorum ekleme."""
 
     def run(self, task: str, context: Optional[Dict] = None) -> AgentResult:
         ctx = context or {}
         files_read = []
 
-        doc_type = ctx.get("doc_type", "genel")  # readme / changelog / docstring / genel
+        doc_type = ctx.get("doc_type", "genel")
 
         if "files" in ctx:
             code_ctx = self._build_code_context(
@@ -28,7 +38,6 @@ Yanıtın direkt dosya içeriği olsun, ek açıklama ekleme."""
             )
             files_read = ctx["files"]
         elif doc_type == "readme":
-            # README için tüm yapıyı ver
             all_py = self.read_files("**/*.py")
             readme = self.read_file("README.md") if (self.project_path / "README.md").exists() else ""
             code_ctx = f"Mevcut README:\n{readme}\n\nKod:\n" + self._build_code_context(all_py)
@@ -43,7 +52,7 @@ Dokümantasyon tipi: {doc_type}
 
 {code_ctx}
 
-Görev: {task}"""
+İstek: {task}"""
 
         try:
             output = self._ask(prompt, temperature=0.4)
