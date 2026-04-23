@@ -275,8 +275,8 @@ def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
         changed = apply_changes(project, blocks)
         yazilan = "\n".join(f"  ✓ `{f}`" for f in changed)
         if push and changed:
-            ok = git_commit_push(project, task, changed, push=True)
-            push_sonuc = "\n✅ GitHub'a push edildi." if ok else "\n⚠️ Push başarısız."
+            ok, msg = git_commit_push(project, task, changed, push=True)
+            push_sonuc = f"\n✅ {msg}" if ok else f"\n⚠️ {msg}"
         elif data == "apply_push" and not gate_ok:
             push_sonuc = "\n⛔ Güvenlik sorunu nedeniyle push engellendi."
         else:

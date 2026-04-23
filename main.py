@@ -71,13 +71,24 @@ def save_result(result, output_dir: Path):
 
 
 def parse_apply_blocks(output: str) -> list:
-    """DOSYA: path + ```python ... ``` bloklarını çıkarır."""
+    """DOSYA:/FILE:/### path + kod bloklarını çıkarır."""
     blocks = []
-    pattern = r'DOSYA:\s*([^\n]+)\n```(?:python)?\n(.*?)```'
-    for m in re.finditer(pattern, output, re.DOTALL):
-        filepath = m.group(1).strip().replace("\\", "/")
+    # Format 1: DOSYA: path\n```python\n...\n```
+    pattern1 = r'(?:DOSYA|FILE|Dosya):\s*([^\n`]+?)\s*\n```(?:python|py)?\n(.*?)```'
+    for m in re.finditer(pattern1, output, re.DOTALL):
+        fp = m.group(1).strip().strip("*`").replace("\\", "/")
         code = m.group(2).rstrip("\n")
-        blocks.append((filepath, code))
+        if fp and code:
+            blocks.append((fp, code))
+    if blocks:
+        return blocks
+    # Format 2: ### path.py\n```python\n...\n```
+    pattern2 = r'#{1,3}\s*([\w./\\-]+\.py)\s*\n```(?:python|py)?\n(.*?)```'
+    for m in re.finditer(pattern2, output, re.DOTALL):
+        fp = m.group(1).strip().replace("\\", "/")
+        code = m.group(2).rstrip("\n")
+        if fp and code:
+            blocks.append((fp, code))
     return blocks
 
 
@@ -94,8 +105,10 @@ def apply_changes(project_path: str, blocks: list) -> list:
     return changed
 
 
-def git_commit_push(project_path: str, task: str, changed_files: list, push: bool) -> bool:
-    """Değiştirilen dosyaları git'e ekler, commit atar, opsiyonel push yapar."""
+def git_commit_push(project_path: str, task: str, changed_files: list, push: bool) -> tuple:
+    """Değiştirilen dosyaları git'e ekler, commit atar, opsiyonel push yapar.
+    Returns: (success: bool, message: str)
+    """
     base = Path(project_path)
     try:
         for f in changed_files:
@@ -108,21 +121,22 @@ def git_commit_push(project_path: str, task: str, changed_files: list, push: boo
         r = subprocess.run(["git", "commit", "-m", msg], cwd=base,
                            capture_output=True, text=True)
         if r.returncode != 0:
-            print(f"  Commit hatası: {r.stderr.strip()}")
-            return False
-        print(f"  ✓ Commit: {r.stdout.strip()[:80]}")
+            err = r.stderr.strip() or r.stdout.strip()
+            return False, f"Commit hatası: {err[:300]}"
 
         if push:
+            # Push öncesi pull — local geride kalmasın
+            subprocess.run(["git", "pull", "origin", "main", "--no-rebase"],
+                           cwd=base, capture_output=True, text=True)
             r = subprocess.run(["git", "push", "origin", "main"], cwd=base,
                                capture_output=True, text=True)
             if r.returncode != 0:
-                print(f"  Push hatası: {r.stderr.strip()}")
-                return False
-            print("  ✓ GitHub'a push edildi.")
-        return True
+                err = r.stderr.strip() or r.stdout.strip()
+                return False, f"Push hatası: {err[:300]}"
+            return True, "GitHub'a push edildi."
+        return True, "Commit edildi (push yapılmadı)."
     except Exception as e:
-        print(f"  Git hatası: {e}")
-        return False
+        return False, f"Git hatası: {e}"
 
 
 def main():
