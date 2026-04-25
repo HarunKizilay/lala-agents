@@ -29,7 +29,7 @@ for env_path in [
 # ── Provider ayarları ─────────────────────────────────────────────────────────
 
 NVIDIA_BASE  = "https://integrate.api.nvidia.com/v1"
-NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "deepseek-ai/deepseek-v4-flash")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
 
 LM_STUDIO_BASE  = os.getenv("LM_STUDIO_BASE_URL", "http://100.109.228.17:1234/v1")
 LM_STUDIO_MODEL = os.getenv("LM_STUDIO_MODEL",    "google/gemma-4-e4b")
