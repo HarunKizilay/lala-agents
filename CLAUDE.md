@@ -49,7 +49,7 @@ Harun Kızılay, 55 yaşında. Eczacı (1992), Farmakoloji doktoru.
 ### Altyapı
 
 - **6 Ajan:** Master, Dev, QA, Doc, Debug, Security
-- **LLM Zinciri:** LM Studio (Tailscale 100.109.228.17:1234) → OpenRouter → GitHub Models → Gemini → Anthropic
+- **LLM Zinciri:** NVIDIA NIM → LM Studio (Tailscale 100.109.228.17:1234) → OpenRouter → GitHub Models → Gemini → Anthropic
 - **LM Studio Modeli:** `google/gemma-4-e4b`
 - **Telegram Bot:** DO'da systemd servisi olarak 7/24 çalışıyor (`lala-bot.service`)
 - **Varsayılan Proje:** `/root/ZEKY` (DO), `C:/Users/aemre/Desktop/ZEKY` (okul), `C:/LALA/ZEKY` (laptop)

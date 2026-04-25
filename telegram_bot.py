@@ -167,6 +167,7 @@ def cmd_durum(chat_id: int, _args: str):
          "`Analiz Motoru modülünü belgele`\n\n"
          "*Dosyaya yazmak için:* mesajın sonuna `--apply` ekle\n"
          "*GitHub push için:* `--apply --push` ekle\n\n"
+         "`/setenv ANAHTAR=değer` — .env güncelle (DO + bot)\n"
          "`/iptal` — Bekleyen işlemi iptal et\n"
          "`/durum` — Bu menüyü göster")
 
@@ -244,6 +245,118 @@ def cmd_iptal(chat_id: int, _args: str):
         send(chat_id, "ℹ️ Bekleyen işlem yok.")
 
 
+def cmd_deploy_setup(chat_id: int, _args: str):
+    """DO'da otomatik deploy timer'ını kurar. Sadece DO sunucusunda çalışır."""
+    import subprocess as sp
+
+    send(chat_id, "⏳ Otomatik deploy kuruluyor...")
+
+    # autopull.sh → /usr/local/bin/lala-autopull.sh
+    script_src = Path("/root/LALA/tools/do_autopull.sh")
+    script_dst = Path("/usr/local/bin/lala-autopull.sh")
+
+    if not script_src.exists():
+        send(chat_id, "❌ `tools/do_autopull.sh` bulunamadı. Önce `git pull` yapın.")
+        return
+
+    try:
+        import shutil
+        shutil.copy(script_src, script_dst)
+        script_dst.chmod(0o755)
+
+        # systemd service
+        service_content = """\
+[Unit]
+Description=LALA GitHub Autopull
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/lala-autopull.sh
+"""
+        Path("/etc/systemd/system/lala-autopull.service").write_text(service_content)
+
+        # systemd timer — her 3 dakikada bir
+        timer_content = """\
+[Unit]
+Description=LALA GitHub Autopull Timer
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=3min
+Unit=lala-autopull.service
+
+[Install]
+WantedBy=timers.target
+"""
+        Path("/etc/systemd/system/lala-autopull.timer").write_text(timer_content)
+
+        sp.run(["systemctl", "daemon-reload"], check=True)
+        sp.run(["systemctl", "enable", "--now", "lala-autopull.timer"], check=True)
+
+        send(chat_id,
+             "✅ *Otomatik deploy kuruldu!*\n\n"
+             "Her 3 dakikada bir GitHub yoklanacak.\n"
+             "Yeni commit varsa → git pull + servis restart.\n\n"
+             "Durum: `/systemctl status lala-autopull.timer`\n"
+             "Log: `tail -f /var/log/lala-autopull.log`")
+    except Exception as e:
+        send(chat_id, f"❌ Kurulum hatası: {e}")
+
+
+def cmd_setenv(chat_id: int, args: str):
+    """Tüm .env dosyalarına anahtar yazar. Kullanım: /setenv ANAHTAR=değer"""
+    args = args.strip()
+    if "=" not in args:
+        send(chat_id, "❌ Format: `/setenv ANAHTAR=değer`\nÖrnek: `/setenv NVIDIA_API_KEY=nvapi-xxx`")
+        return
+
+    key, _, value = args.partition("=")
+    key   = key.strip()
+    value = value.strip()
+
+    if not key or not value:
+        send(chat_id, "❌ Anahtar veya değer boş olamaz.")
+        return
+
+    env_paths = [
+        Path("/root/LALA/.env"),
+        Path("/root/ZEKY/.env"),
+        Path(__file__).parent / ".env",
+    ]
+
+    updated = []
+    for env_path in env_paths:
+        if not env_path.exists():
+            continue
+        try:
+            lines  = env_path.read_text(encoding="utf-8").splitlines()
+            found  = False
+            result = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith(f"{key}=") or stripped.startswith(f"{key} ="):
+                    result.append(f"{key}={value}")
+                    found = True
+                else:
+                    result.append(line)
+            if not found:
+                result.append(f"{key}={value}")
+            env_path.write_text("\n".join(result) + "\n", encoding="utf-8")
+            updated.append(str(env_path))
+        except Exception as e:
+            send(chat_id, f"⚠️ `{env_path}` güncellenemedi: {e}")
+
+    # Çalışan bot sürecine de yansıt
+    os.environ[key] = value
+
+    if updated:
+        dosyalar = "\n".join(f"• `{p}`" for p in updated)
+        send(chat_id, f"✅ `{key}` güncellendi:\n{dosyalar}\n\nBot yeniden başlatılmadan aktif.")
+    else:
+        send(chat_id, "⚠️ Hiç .env dosyası bulunamadı. Sunucu yollarını kontrol edin.")
+
+
 # ── Callback sorunu: inline buton ─────────────────────────────────────────────
 
 def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
@@ -292,6 +405,7 @@ COMMANDS = {
     "durum": cmd_durum, "dev": cmd_ajan, "qa": cmd_ajan,
     "doc": cmd_ajan, "debug": cmd_ajan, "master": cmd_ajan,
     "security": cmd_ajan, "iptal": cmd_iptal,
+    "setenv": cmd_setenv, "deploy-setup": cmd_deploy_setup,
 }
 
 def process_update(update: dict):
@@ -345,6 +459,10 @@ def process_update(update: dict):
     fn = COMMANDS[cmd]
     if cmd in ("dev", "qa", "doc", "debug", "master", "security"):
         EXECUTOR.submit(cmd_ajan, chat_id, cmd, args)
+    elif cmd == "setenv":
+        EXECUTOR.submit(cmd_setenv, chat_id, args)
+    elif cmd == "deploy-setup":
+        EXECUTOR.submit(cmd_deploy_setup, chat_id, args)
     else:
         EXECUTOR.submit(fn, chat_id, args)
 
