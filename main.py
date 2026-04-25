@@ -99,6 +99,18 @@ def apply_changes(project_path: str, blocks: list) -> list:
     for filepath, code in blocks:
         full_path = base / filepath
         full_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Küçülme koruması: mevcut dosya yeni içerikten %70'den fazla büyükse reddet
+        if full_path.exists():
+            existing = full_path.read_text(encoding="utf-8", errors="ignore")
+            old_lines = len(existing.splitlines())
+            new_lines = len(code.splitlines())
+            if old_lines > 20 and new_lines < old_lines * 0.3:
+                print(f"  🚨 ENGELLENDI: {filepath} — {old_lines} satır → {new_lines} satır "
+                      f"(min %30 = {int(old_lines * 0.3)} satır bekleniyor). "
+                      f"LLM tam dosya üretmemiş olabilir.")
+                continue
+
         full_path.write_text(code, encoding="utf-8")
         print(f"  ✓ Yazıldı: {filepath}")
         changed.append(filepath)

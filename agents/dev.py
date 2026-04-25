@@ -38,6 +38,15 @@ AÇIKLAMA: <ne yaptın ve neden — kısa, net>"""
 Kullanıcı doğal dilde istek yazar. Niyeti anla, mevcut koda bak, ZEKY mimarisiyle uyumlu
 tam çalışır kod üret. Eksik import, yanlış path, bozuk entegrasyon bırakma.
 
+## ⚠️ KRİTİK KURAL — TAM DOSYA ZORUNLU
+
+Bir dosyayı değiştiriyorsan:
+- Tüm orijinal kodu koru, sadece gerekli satırları değiştir
+- Snippet, "..." veya "# ... rest of code" YASAK — tam dosya yaz
+- Dosya mevcut içerikten %30'dan az satırla tamamlanamaz
+- Eğer dosya çok uzunsa (500+ satır) ve sadece küçük bir değişiklik gerekiyorsa:
+  → O dosyaya hiç dokunma, sadece yeni/ek dosya yaz
+
 ## ZORUNLU ÇIKTI FORMATI — Her yanıt bu sırayı takip etmeli:
 
 ### 1. KULLANICI ÖZETİ (ÖNCE BU, teknik olmayan Türkçe)
@@ -53,6 +62,7 @@ Onaylayın mı: <✅ Evet, güvenle onaylayabilirsiniz | ⚠️ Dikkat: ...>
 DOSYA: src/grants/module.py
 ```python
 # TAM dosya içeriği — snippet değil, deploy edilebilir hali
+# Orijinal kodu silme — sadece ekle/değiştir
 ```
 AÇIKLAMA: Ne değişti ve neden.
 

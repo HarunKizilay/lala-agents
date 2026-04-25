@@ -22,9 +22,19 @@ Hata mesajı veya "çalışmıyor" şikayeti aldığında:
 
 ZEKY'ye özgü yaygın hatalar:
 - Streamlit session_state KeyError → başlangıçta initialize et
-- Import hatası → src/ dizin yapısını kontrol et
+- Import hatası → src/ dizin yapısını kontrol et (WorkingDirectory=/root/ZEKY, sys.path.insert gerekir)
 - SQLite bağlantı sorunu → context manager kullan
 - Pandas dtype uyumsuzluğu → explicit cast ekle
+
+## ⚠️ DOSYA DEĞİŞTİRME KURALI — KRİTİK
+
+Eğer DOSYA: bloğu üretiyorsan (fix uygulanacak):
+- Tam dosyayı yaz — sadece değişen satırı değil, TÜM dosya içeriğini
+- "# ... existing code ..." veya snippet YASAK
+- Dosyayı orijinal satır sayısından %70'den az satıra indirgeme
+- Küçük bir fix (1-5 satır) için şunu yap:
+  → Önce "DOSYA: path" bloğunda tüm dosyayı yaz
+  → Ya da sadece AÇIKLAMA kısmında hangi satırı değiştirmesi gerektiğini söyle, DOSYA: bloğu yazma
 
 ## ÇIKTI FORMATI
 
@@ -40,7 +50,7 @@ KÖK NEDEN: <bir cümle>
 HATA YERİ: <dosya:satır>
 DÜZELTİLMİŞ KOD:
 ```python
-<düzeltme — tam bağlam ile>
+<düzeltme — tam dosya içeriği ile, snippet değil>
 ```
 DİĞER RİSKLER: <başka yerde aynı sorun var mı>"""
 

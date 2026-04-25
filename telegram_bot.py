@@ -215,7 +215,31 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
         return
 
     gate_ok, gate_report = _security_gate(blocks)
-    dosyalar = "\n".join(f"  • `{fp}` ({len(c.splitlines())} satır)" for fp, c in blocks)
+
+    # Satır sayısı karşılaştırması + küçülme uyarısı
+    dosya_satirlari = []
+    shrink_warning = False
+    for fp, c in blocks:
+        new_lines = len(c.splitlines())
+        full_path = Path(DEFAULT_PROJECT) / fp
+        if full_path.exists():
+            old_lines = len(full_path.read_text(encoding="utf-8", errors="ignore").splitlines())
+            if old_lines > 20 and new_lines < old_lines * 0.3:
+                dosya_satirlari.append(f"  • `{fp}` ~~{old_lines}~~ → {new_lines} satır 🚨")
+                shrink_warning = True
+            else:
+                trend = "↑" if new_lines > old_lines else ("↓" if new_lines < old_lines else "=")
+                dosya_satirlari.append(f"  • `{fp}` {old_lines}{trend}{new_lines} satır")
+        else:
+            dosya_satirlari.append(f"  • `{fp}` {new_lines} satır (yeni)")
+
+    dosyalar = "\n".join(dosya_satirlari)
+
+    if shrink_warning:
+        gate_report = "🚨 *UYARI: Bir veya daha fazla dosya şüpheli şekilde küçülüyor!*\n" \
+                      "LLM tam dosya üretmemiş olabilir. Önce 'Revize Et' ile tekrar deneyin.\n\n" + gate_report
+        gate_ok = False  # Küçülen dosya varsa push engelle
+
     pending[chat_id] = (blocks, DEFAULT_PROJECT, task, gate_ok)
 
     if gate_ok:
