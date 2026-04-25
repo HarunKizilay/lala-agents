@@ -1,9 +1,8 @@
 # LALA – Harun Kızılay
 
 ## Profil
-55 yaşında eczacı, Farmakoloji Dr. Selçuk Üniversitesi Eczacılık Fakültesi ABD başkanı.
-İngilizce B1. Python öğreniyor (VS Code). ML/ANN ilgisi. Önlisans: 3 ders kaldı.
-Hedef: SCIE'de ilk isimli yayın (doçentlik), Python/ML öğrenimi, ZEKY geliştirme.
+Eczacılık Fakültesinde öğretim üyesi, İngilizce B1. Python öğreniyor (VS Code). ML/ANN ilgisi. Önlisans: 3 ders kaldı.
+Hedef: SCIE'de ilk isimli kaliteli araştırma yayın yapmak, Python/ML öğrenimi, ZEKY geliştirme.
 
 ## Kurallar
 1. RAW/ klasörüne dokunma — sadece oku
