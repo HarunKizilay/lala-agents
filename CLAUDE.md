@@ -1,5 +1,7 @@
 # LALA – Harun Kızılay'ın İkinci Beyni
 
+@aktif.md
+
 ## Profil
 
 Harun Kızılay, 55 yaşında. Eczacı (1992), Farmakoloji doktoru.
