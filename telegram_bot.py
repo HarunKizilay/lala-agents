@@ -38,7 +38,8 @@ EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 sys.path.insert(0, str(Path(__file__).parent))
 from agents import MasterAgent, DevAgent, QAAgent, DocAgent, DebugAgent, SecurityAgent
-from main import parse_apply_blocks, apply_changes, git_commit_push
+from main import parse_apply_blocks, apply_changes, git_commit_push, validate_blocks
+from tools.code_validator import errors_to_revision_prompt
 
 AGENT_MAP = {
     "master": MasterAgent, "dev": DevAgent, "qa": QAAgent,
@@ -214,11 +215,61 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
     if not blocks:
         return
 
+    # ── KOD VALİDASYONU + 1 KEZ OTOMATİK RETRY ──
+    val_results = validate_blocks(blocks)
+    bad_validations = [r for r in val_results if not r.ok]
+
+    if bad_validations:
+        # Otomatik retry — daha katı prompt'la 1 kere
+        retry_prompt = errors_to_revision_prompt(val_results)
+        send(chat_id,
+             f"🔄 *Kod hatalı geldi, otomatik düzeltme deneniyor...*\n"
+             f"Sorun: {bad_validations[0].errors[0][:100]}")
+        try:
+            AgentClass = AGENT_MAP[agent_key]
+            agent = AgentClass(DEFAULT_PROJECT)
+            retry_task = f"{task}\n\n{retry_prompt}"
+            with cf.ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(agent.run, retry_task, {"apply": True})
+                try:
+                    result = fut.result(timeout=180)
+                except cf.TimeoutError:
+                    send(chat_id, "⏰ Retry zaman aşımı.")
+                    return
+
+            if result.ok():
+                # Yeni çıktıyı gönder
+                output = result.output
+                for i in range(0, len(output), 4000):
+                    send(chat_id, output[i:i+4000], parse_mode=None)
+
+                blocks = parse_apply_blocks(result.output)
+                if not blocks:
+                    send(chat_id, "❌ Retry sonrası kod bloğu yok.")
+                    return
+                val_results = validate_blocks(blocks)
+                bad_validations = [r for r in val_results if not r.ok]
+        except Exception as e:
+            log.error(f"Retry hatası: {e}")
+
+    # Validasyon raporu — kullanıcıya göster
+    val_lines = []
+    auto_fixed_count = sum(1 for r in val_results if r.auto_fixed)
+    for r in val_results:
+        if not r.ok:
+            val_lines.append(f"  🔴 `{r.filepath}` — {r.errors[0][:80]}")
+        elif r.auto_fixed:
+            val_lines.append(f"  🔧 `{r.filepath}` — black ile auto-fix uygulandı")
+        elif r.warnings:
+            val_lines.append(f"  🟡 `{r.filepath}` — {r.warnings[0][:80]}")
+    val_report = ("📋 *Kod Validasyonu:*\n" + "\n".join(val_lines) + "\n\n") if val_lines else ""
+
     gate_ok, gate_report = _security_gate(blocks)
 
     # Satır sayısı karşılaştırması + küçülme uyarısı
     dosya_satirlari = []
     shrink_warning = False
+    val_block = any(not r.ok for r in val_results)
     for fp, c in blocks:
         new_lines = len(c.splitlines())
         full_path = Path(DEFAULT_PROJECT) / fp
@@ -238,11 +289,22 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
     if shrink_warning:
         gate_report = "🚨 *UYARI: Bir veya daha fazla dosya şüpheli şekilde küçülüyor!*\n" \
                       "LLM tam dosya üretmemiş olabilir. Önce 'Revize Et' ile tekrar deneyin.\n\n" + gate_report
-        gate_ok = False  # Küçülen dosya varsa push engelle
+        gate_ok = False
 
-    pending[chat_id] = (blocks, DEFAULT_PROJECT, task, gate_ok)
+    if val_block:
+        gate_report = "🚨 *KOD VALİDASYONU BAŞARISIZ — Tek satıra sıkışma veya sözdizim hatası tespit edildi!*\n" \
+                      "Apply ve push engellendi. 'Revize Et' ile tekrar deneyin.\n\n" + gate_report
+        gate_ok = False
 
-    if gate_ok:
+    pending[chat_id] = (blocks, DEFAULT_PROJECT, task, gate_ok and not val_block, val_results)
+
+    if val_block:
+        # Validasyon engelledi — sadece Revize Et + İptal
+        keyboard = {"inline_keyboard": [[
+            {"text": "✏️ Revize Et", "callback_data": "apply_revise"},
+            {"text": "❌ İptal",      "callback_data": "apply_no"},
+        ]]}
+    elif gate_ok:
         keyboard = {"inline_keyboard": [[
             {"text": "✅ Uygula",        "callback_data": "apply_yes"},
             {"text": "✅ Uygula + Push", "callback_data": "apply_push"},
@@ -262,8 +324,12 @@ def cmd_ajan(chat_id: int, agent_key: str, args: str):
     ozet = _extract_user_summary(result.output)
     ozet_bolum = f"{ozet}\n\n" if ozet else ""
 
+    auto_fix_note = ""
+    if auto_fixed_count:
+        auto_fix_note = f"🔧 *{auto_fixed_count} dosya black ile yeniden formatlandı*\n\n"
+
     send(chat_id,
-         f"{ozet_bolum}📂 *Değiştirilecek dosyalar:*\n{dosyalar}\n\n{gate_report}",
+         f"{ozet_bolum}{auto_fix_note}{val_report}📂 *Değiştirilecek dosyalar:*\n{dosyalar}\n\n{gate_report}",
          reply_markup=keyboard)
 
 
@@ -398,7 +464,12 @@ def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
         edit_message(chat_id, message_id, "⚠️ Bekleyen işlem bulunamadı.")
         return
 
-    blocks, project, task, gate_ok = info
+    # Geriye dönük uyumluluk: 4 veya 5 elemanlı tuple
+    if len(info) == 5:
+        blocks, project, task, gate_ok, val_results = info
+    else:
+        blocks, project, task, gate_ok = info
+        val_results = None
 
     if data == "apply_no":
         edit_message(chat_id, message_id, "❌ İptal edildi.")
@@ -414,7 +485,12 @@ def handle_callback(callback_id: str, chat_id: int, message_id: int, data: str):
 
     edit_message(chat_id, message_id, "⏳ Dosyalar yazılıyor...")
     try:
-        changed = apply_changes(project, blocks)
+        changed = apply_changes(project, blocks, validation_results=val_results)
+        if not changed:
+            edit_message(chat_id, message_id,
+                         "🚨 *Hiç dosya yazılamadı!*\nValidasyon veya küçülme koruması engelledi. "
+                         "Revize Et ile tekrar deneyin.")
+            return
         yazilan = "\n".join(f"  ✓ `{f}`" for f in changed)
         if push and changed:
             ok, msg = git_commit_push(project, task, changed, push=True)

@@ -92,27 +92,81 @@ def parse_apply_blocks(output: str) -> list:
     return blocks
 
 
-def apply_changes(project_path: str, blocks: list) -> list:
-    """Kod bloklarını dosyalara yazar, değiştirilen dosya listesini döner."""
+def validate_blocks(blocks: list) -> list:
+    """
+    Her bloğu code_validator ile kontrol eder.
+    .py dosyaları için AST parse + tek-satır sıkışma + placeholder tespiti yapar.
+
+    Returns:
+        list of ValidationResult — her blok için bir sonuç
+    """
+    from tools.code_validator import validate_and_fix
+
+    results = []
+    for filepath, code in blocks:
+        if filepath.endswith(".py"):
+            r = validate_and_fix(code, filepath)
+        else:
+            # Python dışı dosyalar için sadece boşluk kontrolü
+            from tools.code_validator import ValidationResult
+            r = ValidationResult(filepath=filepath)
+            r.line_count = len(code.splitlines())
+            r.char_count = len(code)
+            if not code.strip():
+                r.add_error("Boş dosya")
+        results.append(r)
+    return results
+
+
+def apply_changes(project_path: str, blocks: list, validation_results: list = None) -> list:
+    """Kod bloklarını dosyalara yazar, değiştirilen dosya listesini döner.
+
+    Args:
+        project_path: proje yolu
+        blocks: parse_apply_blocks çıktısı [(filepath, code), ...]
+        validation_results: önceden hesaplanan validation sonuçları (yoksa burada yapılır)
+    """
     changed = []
     base = Path(project_path)
+
+    # Validasyon
+    if validation_results is None:
+        validation_results = validate_blocks(blocks)
+
+    # filepath → ValidationResult eşleştirme
+    val_map = {r.filepath: r for r in validation_results}
+
     for filepath, code in blocks:
         full_path = base / filepath
         full_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Validation kontrolü — ENGEL
+        val = val_map.get(filepath)
+        if val and not val.ok:
+            print(f"  🚨 ENGELLENDİ ({filepath}):")
+            for err in val.errors:
+                print(f"      ❌ {err}")
+            continue
+
+        # Auto-fix uygulanmışsa düzeltilmiş kodu kullan
+        write_code = code
+        if val and val.auto_fixed and val.fixed_code:
+            write_code = val.fixed_code
+            print(f"  🔧 Auto-fix uygulandı: {filepath}")
 
         # Küçülme koruması: mevcut dosya yeni içerikten %70'den fazla büyükse reddet
         if full_path.exists():
             existing = full_path.read_text(encoding="utf-8", errors="ignore")
             old_lines = len(existing.splitlines())
-            new_lines = len(code.splitlines())
+            new_lines = len(write_code.splitlines())
             if old_lines > 20 and new_lines < old_lines * 0.3:
-                print(f"  🚨 ENGELLENDI: {filepath} — {old_lines} satır → {new_lines} satır "
+                print(f"  🚨 ENGELLENDİ: {filepath} — {old_lines} satır → {new_lines} satır "
                       f"(min %30 = {int(old_lines * 0.3)} satır bekleniyor). "
                       f"LLM tam dosya üretmemiş olabilir.")
                 continue
 
-        full_path.write_text(code, encoding="utf-8")
-        print(f"  ✓ Yazıldı: {filepath}")
+        full_path.write_text(write_code, encoding="utf-8")
+        print(f"  ✓ Yazıldı: {filepath} ({len(write_code.splitlines())} satır)")
         changed.append(filepath)
     return changed
 

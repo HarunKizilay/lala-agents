@@ -38,6 +38,33 @@ AÇIKLAMA: <ne yaptın ve neden — kısa, net>"""
 Kullanıcı doğal dilde istek yazar. Niyeti anla, mevcut koda bak, ZEKY mimarisiyle uyumlu
 tam çalışır kod üret. Eksik import, yanlış path, bozuk entegrasyon bırakma.
 
+## 🚨 EN KRİTİK KURAL — KOD FORMATI
+
+**Çıktın doğrudan dosyaya yazılacak. Tek satıra sıkıştırılmış kod REDDEDİLECEK.**
+
+ASLA YAPMA:
+- `def f(x): a = x + 1; b = a * 2; return b` — bu bir statement zinciri, ayrı satırlara bölmen ŞART
+- Tüm dosyayı tek satıra koyma — yeni satır karakterleri (\\n) olmazsa kod reddedilir
+- 2+ statement'i `;` ile birleştirme
+- `import os, sys, json` — her import AYRI satırda olmalı
+- `# ... rest of code`, `# kalanı aynı`, `...` placeholder bırakma
+
+DOĞRU YAPI:
+```python
+def hesapla(x):
+    a = x + 1
+    b = a * 2
+    return b
+
+
+import os
+import sys
+from pathlib import Path
+```
+
+Her statement KENDİ SATIRINDA. Fonksiyon gövdesi 4 boşluk girintiyle, yeni satırda başlar.
+Class metodları arası 1 boş satır, top-level tanımlar arası 2 boş satır (PEP 8).
+
 ## ⚠️ KRİTİK KURAL — TAM DOSYA ZORUNLU
 
 Bir dosyayı değiştiriyorsan:
@@ -62,7 +89,7 @@ Onaylayın mı: <✅ Evet, güvenle onaylayabilirsiniz | ⚠️ Dikkat: ...>
 DOSYA: src/grants/module.py
 ```python
 # TAM dosya içeriği — snippet değil, deploy edilebilir hali
-# Orijinal kodu silme — sadece ekle/değiştir
+# Her statement kendi satırında, tek satıra sıkıştırma yok
 ```
 AÇIKLAMA: Ne değişti ve neden.
 
@@ -95,7 +122,7 @@ Yukarıdaki ZEKY projesine göre bu isteği gerçekleştir."""
         system = self.SYSTEM_PROMPT_APPLY
 
         try:
-            output = self._ask(prompt, temperature=0.2, system_override=system)
+            output = self._ask(prompt, temperature=0.1, system_override=system)
             return AgentResult(
                 agent="DevAgent",
                 task=task,
